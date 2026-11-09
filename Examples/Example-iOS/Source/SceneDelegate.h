@@ -1,7 +1,7 @@
-/*! @file GTMAppAuth.h
-    @brief GTMAppAuth SDK
+/*! @file SceneDelegate.h
+    @brief GTMAppAuth SDK iOS Example
     @copyright
-        Copyright 2016 Google Inc.
+        Copyright 2026 Google LLC
     @copydetails
         Licensed under the Apache License, Version 2.0 (the "License");
         you may not use this file except in compliance with the License.
@@ -15,15 +15,18 @@
         See the License for the specific language governing permissions and
         limitations under the License.
  */
+#import <UIKit/UIKit.h>
 
-#import "GTMAppAuthFetcherAuthorization.h"
-#import "GTMAppAuthFetcherAuthorization+Keychain.h"
+@protocol OIDExternalUserAgentSession;
 
-#if TARGET_OS_TV
-#elif TARGET_OS_WATCH
-#elif TARGET_OS_IOS || TARGET_OS_MAC
-#import "GTMKeychain.h"
-#import "GTMOAuth2KeychainCompatibility.h"
-#else
-#warn "Platform Undefined"
-#endif
+/*! @brief The example application's scene delegate.
+*/
+@interface SceneDelegate : UIResponder <UIWindowSceneDelegate>
+
+@property(strong, nonatomic) UIWindow *window;
+
+/*! @brief The authorization flow session which receives the return URL from the external user agent (ASWebAuthenticationSession on iOS 15+).
+ */
+@property(nonatomic, strong, nullable) id<OIDExternalUserAgentSession> currentAuthorizationFlow;
+
+@end

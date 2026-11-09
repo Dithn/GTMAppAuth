@@ -18,40 +18,52 @@
 
 #import "GTMAppAuthExampleViewController.h"
 
-#import <AppAuth/AppAuth.h>
-#import <GTMAppAuth/GTMAppAuth.h>
 #import <QuartzCore/QuartzCore.h>
 
-#import "AppDelegate.h"
-#import "GTMSessionFetcher.h"
-#import "GTMSessionFetcherService.h"
+@import AppAuth;
+@import GTMAppAuth;
+#ifdef COCOAPODS
+@import GTMSessionFetcher;
+#else // SPM
+@import GTMSessionFetcherCore;
+#endif
+
+#import "SceneDelegate.h"
 
 /*! @brief The OIDC issuer from which the configuration will be discovered.
+    @discussion Populated from Info.plist ("OIDCIssuer" key), which in turn is set from the
+        OIDC_ISSUER build setting in Config/Example.xcconfig (override in
+        Config/Example.local.xcconfig).
  */
-static NSString *const kIssuer = @"https://accounts.google.com";
+#define kIssuer ((NSString *)[[NSBundle mainBundle] objectForInfoDictionaryKey:@"OIDCIssuer"])
 
 /*! @brief The OAuth client ID.
     @discussion For Google, register your client at
         https://console.developers.google.com/apis/credentials?project=_
-        The client should be registered with the "iOS" type.
+        The client should be registered with the "iOS" type. Populated from Info.plist
+        ("OIDCClientID" key) via the OIDC_CLIENT_ID build setting in
+        Config/Example.local.xcconfig.
  */
-static NSString *const kClientID = @"YOUR_CLIENT.apps.googleusercontent.com";
+#define kClientID ((NSString *)[[NSBundle mainBundle] objectForInfoDictionaryKey:@"OIDCClientID"])
 
 /*! @brief The OAuth redirect URI for the client @c kClientID.
     @discussion With Google, the scheme of the redirect URI is the reverse DNS notation of the
         client ID. This scheme must be registered as a scheme in the project's Info
-        property list ("CFBundleURLTypes" plist key). Any path component will work, we use
-        'oauthredirect' here to help disambiguate from any other use of this scheme.
+        property list ("CFBundleURLTypes" plist key). Populated from Info.plist
+        ("OIDCRedirectURI" key) via the OIDC_REDIRECT_URI build setting in
+        Config/Example.local.xcconfig.
  */
-static NSString *const kRedirectURI =
-    @"com.googleusercontent.apps.YOUR_CLIENT:/oauthredirect";
+#define kRedirectURI     ((NSString *)[[NSBundle mainBundle] objectForInfoDictionaryKey:@"OIDCRedirectURI"])
 
-/*! @brief @c NSCoding key for the authState property.
+/*! @brief The key used to store our `GTMAuthSession` in the keychain.
  */
-static NSString *const kExampleAuthorizerKey = @"authorization";
+static NSString *const kKeychainStoreItemName = @"authorization";
 
 @interface GTMAppAuthExampleViewController () <OIDAuthStateChangeDelegate,
                                                OIDAuthStateErrorDelegate>
+
+@property (nonatomic, strong) GTMKeychainStore *keychainStore;
+
 @end
 
 @implementation GTMAppAuthExampleViewController
@@ -59,21 +71,22 @@ static NSString *const kExampleAuthorizerKey = @"authorization";
 - (void)viewDidLoad {
   [super viewDidLoad];
 
+  self.keychainStore = [[GTMKeychainStore alloc] initWithItemName:kKeychainStoreItemName];
 #if !defined(NS_BLOCK_ASSERTIONS)
   // NOTE:
   //
   // To run this sample, you need to register your own iOS client at
-  // https://console.developers.google.com/apis/credentials?project=_ and update three configuration
-  // points in the sample: kClientID and kRedirectURI constants in AppAuthExampleViewController.m
-  // and the URI scheme in Info.plist (URL Types -> Item 0 -> URL Schemes -> Item 0).
+  // https://console.developers.google.com/apis/credentials?project=_ and set the
+  // OIDC_CLIENT_ID, OIDC_REDIRECT_URI, and OIDC_REDIRECT_URI_SCHEME build settings in
+  // Config/Example.local.xcconfig (see Config/Example.xcconfig for the placeholder defaults).
   // Full instructions: https://github.com/openid/AppAuth-iOS/blob/master/Example/README.md
 
   NSAssert(![kClientID isEqualToString:@"YOUR_CLIENT.apps.googleusercontent.com"],
-           @"Update kClientID with your own client ID. "
+           @"Set OIDC_CLIENT_ID in Config/Example.local.xcconfig to your own client ID. "
             "Instructions: https://github.com/openid/AppAuth-iOS/blob/master/Example/README.md");
 
   NSAssert(![kRedirectURI isEqualToString:@"com.googleusercontent.apps.YOUR_CLIENT:/oauthredirect"],
-           @"Update kRedirectURI with your own redirect URI. "
+           @"Set OIDC_REDIRECT_URI in Config/Example.local.xcconfig to your own redirect URI. "
             "Instructions: https://github.com/openid/AppAuth-iOS/blob/master/Example/README.md");
 
   // verifies that the custom URI scheme has been updated in the Info.plist
@@ -84,8 +97,8 @@ static NSString *const kExampleAuthorizerKey = @"authorization";
   NSString *urlScheme = urlSchemes.firstObject;
 
   NSAssert(![urlScheme isEqualToString:@"com.googleusercontent.apps.YOUR_CLIENT"],
-           @"Configure the URI scheme in Info.plist (URL Types -> Item 0 -> URL Schemes -> Item 0) "
-            "with the scheme of your redirect URI. Full instructions: "
+           @"Set OIDC_REDIRECT_URI_SCHEME in Config/Example.local.xcconfig to the scheme of your "
+            "redirect URI. Full instructions: "
             "https://github.com/openid/AppAuth-iOS/blob/master/Example/README.md");
 
 #endif // !defined(NS_BLOCK_ASSERTIONS)
@@ -100,40 +113,47 @@ static NSString *const kExampleAuthorizerKey = @"authorization";
   [self updateUI];
 }
 
-/*! @brief Saves the @c GTMAppAuthFetcherAuthorization to @c NSUSerDefaults.
+/*! @brief Saves the @c GTMAuthSession to the keychain.
  */
 - (void)saveState {
-  if (_authorization.canAuthorize) {
-    [GTMAppAuthFetcherAuthorization saveAuthorization:_authorization
-                                    toKeychainForName:kExampleAuthorizerKey];
+  NSError *error;
+  if (_authSession.canAuthorize) {
+    [self.keychainStore saveAuthSession:_authSession error:&error];
   } else {
-    [GTMAppAuthFetcherAuthorization removeAuthorizationFromKeychainForName:kExampleAuthorizerKey];
+    [self.keychainStore removeAuthSessionWithError:&error];
+  }
+  if (error) {
+    NSLog(@"Error saving state: %@ error", error);
   }
 }
 
-/*! @brief Loads the @c GTMAppAuthFetcherAuthorization from @c NSUSerDefaults.
+/*! @brief Loads the @c GTMAuthSession from the keychain.
  */
 - (void)loadState {
-  GTMAppAuthFetcherAuthorization* authorization =
-      [GTMAppAuthFetcherAuthorization authorizationFromKeychainForName:kExampleAuthorizerKey];
-  [self setGtmAuthorization:authorization];
+  NSError *error;
+  GTMAuthSession *authSession =
+      [self.keychainStore retrieveAuthSessionWithError:&error];
+  if (error) {
+    NSLog(@"Error loading state: %@", error);
+  }
+  [self setAuthSession:authSession];
 }
 
-- (void)setGtmAuthorization:(GTMAppAuthFetcherAuthorization*)authorization {
-  if ([_authorization isEqual:authorization]) {
+- (void)setAuthSession:(GTMAuthSession *)authSession {
+  if ([_authSession isEqual:authSession]) {
     return;
   }
-  _authorization = authorization;
+  _authSession = authSession;
   [self stateChanged];
 }
 
 /*! @brief Refreshes UI, typically called after the auth state changed.
  */
 - (void)updateUI {
-  _userinfoButton.enabled = _authorization.canAuthorize;
-  _clearAuthStateButton.enabled = _authorization.canAuthorize;
+  _userinfoButton.enabled = _authSession.canAuthorize;
+  _clearAuthStateButton.enabled = _authSession.canAuthorize;
   // dynamically changes authorize button text depending on authorized state
-  if (!_authorization.canAuthorize) {
+  if (!_authSession.canAuthorize) {
     [_authAutoButton setTitle:@"Authorize" forState:UIControlStateNormal];
     [_authAutoButton setTitle:@"Authorize" forState:UIControlStateHighlighted];
   } else {
@@ -167,7 +187,7 @@ static NSString *const kExampleAuthorizerKey = @"authorization";
 
     if (!configuration) {
       [self logMessage:@"Error retrieving discovery document: %@", [error localizedDescription]];
-      [self setGtmAuthorization:nil];
+      [self setAuthSession:nil];
       return;
     }
 
@@ -182,23 +202,22 @@ static NSString *const kExampleAuthorizerKey = @"authorization";
                                                   responseType:OIDResponseTypeCode
                                           additionalParameters:nil];
     // performs authentication request
-    AppDelegate *appDelegate = (AppDelegate *)[UIApplication sharedApplication].delegate;
+    SceneDelegate *sceneDelegate = (SceneDelegate *)self.view.window.windowScene.delegate;
     [self logMessage:@"Initiating authorization request with scope: %@", request.scope];
 
-    appDelegate.currentAuthorizationFlow =
+    sceneDelegate.currentAuthorizationFlow =
         [OIDAuthState authStateByPresentingAuthorizationRequest:request
             presentingViewController:self
                             callback:^(OIDAuthState *_Nullable authState,
                                        NSError *_Nullable error) {
       if (authState) {
-        GTMAppAuthFetcherAuthorization *authorization =
-            [[GTMAppAuthFetcherAuthorization alloc] initWithAuthState:authState];
+        GTMAuthSession *authSession = [[GTMAuthSession alloc] initWithAuthState:authState];
 
-        [self setGtmAuthorization:authorization];
+        [self setAuthSession:authSession];
         [self logMessage:@"Got authorization tokens. Access token: %@",
                          authState.lastTokenResponse.accessToken];
       } else {
-        [self setGtmAuthorization:nil];
+        [self setAuthSession:nil];
         [self logMessage:@"Authorization error: %@", [error localizedDescription]];
       }
     }];
@@ -206,7 +225,7 @@ static NSString *const kExampleAuthorizerKey = @"authorization";
 }
 
 - (IBAction)clearAuthState:(nullable id)sender {
-  [self setGtmAuthorization:nil];
+  [self setAuthSession:nil];
 }
 
 - (IBAction)clearLog:(nullable id)sender {
@@ -219,7 +238,7 @@ static NSString *const kExampleAuthorizerKey = @"authorization";
   // Creates a GTMSessionFetcherService with the authorization.
   // Normally you would save this service object and re-use it for all REST API calls.
   GTMSessionFetcherService *fetcherService = [[GTMSessionFetcherService alloc] init];
-  fetcherService.authorizer = self.authorization;
+  fetcherService.authorizer = self.authSession;
 
   // Creates a fetcher for the API call.
   NSURL *userinfoEndpoint = [NSURL URLWithString:@"https://www.googleapis.com/oauth2/v3/userinfo"];
@@ -229,7 +248,7 @@ static NSString *const kExampleAuthorizerKey = @"authorization";
     if (error) {
       // OIDOAuthTokenErrorDomain indicates an issue with the authorization.
       if ([error.domain isEqual:OIDOAuthTokenErrorDomain]) {
-        [self setGtmAuthorization:nil];
+        [self setAuthSession:nil];
         [self logMessage:@"Authorization error during token refresh, clearing state. %@", error];
       // Other errors are assumed transient.
       } else {

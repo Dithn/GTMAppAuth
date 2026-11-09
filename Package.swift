@@ -1,4 +1,4 @@
-// swift-tools-version:5.1
+// swift-tools-version:5.7
 // The swift-tools-version declares the minimum version of Swift required to build this package.
 
 // Copyright 2021 Google LLC
@@ -18,43 +18,60 @@
 import PackageDescription
 
 let package = Package(
-    name: "GTMAppAuth",
-    platforms: [
-        .macOS(.v10_11),
-        .iOS(.v9),
-        .tvOS(.v9),
-        .watchOS(.v6)
-    ],
-    products: [
-        .library(
-            name: "GTMAppAuth",
-            targets: ["GTMAppAuth"]
-        )
-    ],
-    dependencies: [
-        .package(url: "https://github.com/google/gtm-session-fetcher.git", "1.5.0" ..< "2.0.0"),
-        .package(url: "https://github.com/openid/AppAuth-iOS.git", "1.4.0" ..< "2.0.0")
-    ],
-    targets: [
-        .target(
-            name: "GTMAppAuth",
-            dependencies: [
-                "GTMSessionFetcherCore",
-                "AppAuthCore"
-            ],
-            path: "GTMAppAuth/Sources",
-            sources: [
-                ".",
-                "iOS",
-                "macOS"
-            ],
-            publicHeadersPath: "Public",
-	    cSettings: [
-                .headerSearchPath("../../"),
-            ],
-	    linkerSettings: [
-                .linkedFramework("Security"),
-	    ]
-        )
-    ]
+  name: "GTMAppAuth",
+  platforms: [
+    .macOS(.v12),
+    .iOS(.v15),
+    .tvOS(.v15),
+    .watchOS(.v9)
+  ],
+  products: [
+    .library(
+      name: "GTMAppAuth",
+      targets: ["GTMAppAuth"]
+    )
+  ],
+  dependencies: [
+    .package(url: "https://github.com/google/gtm-session-fetcher.git", "3.3.0" ..< "6.0.0"),
+    .package(url: "https://github.com/openid/AppAuth-iOS.git", "3.0.0" ..< "4.0.0")
+  ],
+  targets: [
+    .target(
+      name: "GTMAppAuth",
+      dependencies: [
+        .product(name: "GTMSessionFetcherCore", package: "gtm-session-fetcher"),
+        .product(name: "AppAuthCore", package: "AppAuth-iOS")
+      ],
+      path: "GTMAppAuth/Sources",
+      resources: [.copy("Resources/PrivacyInfo.xcprivacy")],
+      linkerSettings: [
+        .linkedFramework("Security"),
+      ]
+    ),
+    .target(
+      name: "TestHelpers",
+      dependencies: [
+        .product(name: "AppAuthCore", package: "AppAuth-iOS"),
+        "GTMAppAuth"
+      ],
+      path: "GTMAppAuth/Tests/Helpers"
+    ),
+    .testTarget(
+      name: "GTMAppAuthTests",
+      dependencies: [
+        "GTMAppAuth",
+        "TestHelpers"
+      ],
+      path: "GTMAppAuth/Tests/Unit"
+    ),
+    .testTarget(
+      name: "swift-objc-interop-tests",
+      dependencies: [
+        .product(name: "AppAuthCore", package: "AppAuth-iOS"),
+        "GTMAppAuth",
+        "TestHelpers"
+      ],
+      path: "GTMAppAuth/Tests/ObjCIntegration"
+    )
+  ]
 )

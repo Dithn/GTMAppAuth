@@ -1,28 +1,87 @@
-# GTMAppAuth Changelog
+# Unreleased
+- Deprecated CocoaPods distribution. GTMAppAuth 6.0.0 is the last release published to CocoaPods; CocoaPods trunk becomes read-only on December 2, 2026. See [MIGRATING_FROM_COCOAPODS.md](MIGRATING_FROM_COCOAPODS.md) for moving to Swift Package Manager. ([#277](https://github.com/google/GTMAppAuth/issues/277))
 
-## 1.2.2 (2021-05-4)
+# 6.0.0
+- BREAKING: Updated the AppAuth dependency to 3.0.0 and raised the minimum deployment targets to iOS 15.0, macOS 12.0, tvOS 15.0 and watchOS 9.0, along with `swift-tools-version` 5.7 ([#280](https://github.com/google/GTMAppAuth/pull/280))
+- Widened the GTMSessionFetcher dependency to allow 4.x and 5.x, and updated the CocoaPods development dependency to 1.17.0 ([#284](https://github.com/google/GTMAppAuth/pull/284))
+- Migrated the iOS example app to the UIScene lifecycle; the iOS example now requires iOS 15+ ([#278](https://github.com/google/GTMAppAuth/pull/278))
+- Updated the iOS example to use xcconfig-based client configuration ([#279](https://github.com/google/GTMAppAuth/pull/279))
+- Fixed compile errors when building in Swift 6 language mode ([#267](https://github.com/google/GTMAppAuth/pull/267))
+
+# 5.0.0
+- Update keychain default on Mac to be data protected ([#259](https://github.com/google/GTMAppAuth/pull/259))
+- Update AppAuth dependency to 2.0.0 ([#262](https://github.com/google/GTMAppAuth/pull/262))
+- Fix Swift 6 mode `@Sendable` closure warning ([#263](https://github.com/google/GTMAppAuth/pull/263))
+
+# 4.1.1
+- Fix PrivacyInfo bundling issues ([#241](https://github.com/google/GTMAppAuth/pull/241))
+
+# 4.1.0
+- Fix keychain key bug ([#237](https://github.com/google/GTMAppAuth/pull/237))
+- Add privacy manifest ([#239](https://github.com/google/GTMAppAuth/pull/239))
+
+# 4.0.0
+
+- Updated `AuthSessionDelegate` method for updating error to take a completion to support async updates [#229](https://github.com/google/GTMAppAuth/pull/229)
+
+# 3.0.0
+
+- GTMAppAuth has been translated from Objective-C to Swift. ([#190](https://github.com/google/GTMAppAuth/pull/190))
+- Improved API surface. ([#203](https://github.com/google/GTMAppAuth/pull/203))
+  - Renamed `GTMAppAuthFetcherAuthorization` to `GTMAuthSession`.
+  - Added `GTMAuthSessionStore` protocol.
+  - Added `GTMKeychainStore` class conforming to `GTMAuthSessionStore` providing keychain storage of `GTMAuthSession` objects as well as [GTMOAuth2](https://github.com/google/gtm-oauth2) compatibility.
+    - Added the ability to specify a keychain access group rather than use the default group.
+    - Stored representation of `GTMAuthSession` objects remains unchanged from that of `GTMAppAuthFetcherAuthorization`
+      in previous versions of GTMAppAuth, allowing for backward and forward compatibilty.
+  - Significantly improved error handling.
+  - Added [`AuthSessionDelegate`](https://github.com/google/GTMAppAuth/pull/224/files#diff-ad81e5244511faaa4b3d98553128438e30a94914c279fb7d42c0acfbbdc24500) protocol allowing clients to 1) provide additional token refresh parameters and 2) inspect and modify errors before they are returned during the authorize request flow.
+- Unit tests added. ([#190](https://github.com/google/GTMAppAuth/pull/190), [#202](https://github.com/google/GTMAppAuth/pull/202))
+
+# 2.0.0
+
+* Updated the GTMSessionFetcher dependency to allow 3.x versions. ([#192](https://github.com/google/GTMAppAuth/pull/192))
+* Minimum deployment versions for iOS and tvOS increased to 10. ([#188](https://github.com/google/GTMAppAuth/pull/188), [#191](https://github.com/google/GTMAppAuth/pull/191))
+
+# 1.3.1
+
+* Updated the GTMSessionFetcher dependency to allow 2.x versions. ([#155](https://github.com/google/GTMAppAuth/pull/155), [#175](https://github.com/google/GTMAppAuth/pull/175))
+* Use secure coding with `NSKeyedArchiver` when available. ([#145](https://github.com/google/GTMAppAuth/pull/145))
+
+# 1.3.0
+
+* Added the option to use the data protection keychain on macOS. ([#151](https://github.com/google/GTMAppAuth/pull/151))
+* Unified the keychain access layer, moving macOS to the modern SecItem API. ([#150](https://github.com/google/GTMAppAuth/pull/150))
+* Added Swift Package Manager projects for the example apps. ([#153](https://github.com/google/GTMAppAuth/pull/153))
+
+# 1.2.3
+
+* Fixed Keychain duplicate entry error on macOS. ([#138](https://github.com/google/GTMAppAuth/pull/138))
+* Match GTMSessionFetcher's min macOS version to avoid warnings. ([#142](https://github.com/google/GTMAppAuth/pull/142))
+
+# 1.2.2
 
 * Fixed Swift Package Manager issue with Xcode 12.5.
 
-## 1.2.1 (2021-04-2)
+# 1.2.1
 
 * Address CocoaPod packaging issue in the 1.2.0 release.
 
-## 1.2.0 (2021-03-31)
+# 1.2.0
 
 * Addressed several Swift Package Manager issues.
 * Restructured the project for cleaner Swift Package Manager support.
 
-## 1.1.0 (2020-09-29)
+# 1.1.0
 
 * Added Swift Package Manager support.
 * Added watchOS support.
 
-## 1.0.0 (2019-08-13)
+# 1.0.0
 
 * Moved tvOS authorization support out to a branch.
 
-## 0.8.0 (2019-08-01)
+# 0.8.0
 
 * Added `tokenRefreshDelegate` to `GTMAppAuthFetcherAuthorization`.
 * Updated to depend on AppAuth/Core 1.0.
